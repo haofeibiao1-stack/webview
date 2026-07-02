@@ -20,8 +20,10 @@ class WebviewData {
 
   factory WebviewData.fromJson(Map<String, dynamic> json) {
     final rawParams = json['params'];
+    // 兼容两种约定：办公用 `method`，文库存量 H5 用 `type`。先取 method，回退 type。
+    final rawMethod = json['method'] ?? json['type'];
     return WebviewData(
-      method: json['method']?.toString() ?? '',
+      method: rawMethod?.toString() ?? '',
       params: rawParams is Map ? rawParams : const {},
       callback: json['callback']?.toString() ?? '',
     );
