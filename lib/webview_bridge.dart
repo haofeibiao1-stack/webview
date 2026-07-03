@@ -21,3 +21,7 @@ export 'src/delegate/ui_delegate.dart';
 export 'src/model/web_bridge_account.dart';
 export 'src/model/webview_data.dart';
 export 'src/widget/web_bridge_webview.dart';
+
+// 插件公开 API 暴露了 WebViewController（onControllerCreated / BridgeContext.controller），
+// 一并转出，接入方无需再单独 import webview_flutter 即可持有控制器执行 JS。
+export 'package:webview_flutter/webview_flutter.dart' show WebViewController;

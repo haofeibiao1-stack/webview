@@ -17,6 +17,21 @@ class WebBridgeHostListener {
   });
 }
 
+/// H5 `<input type="file">` 触发原生文件选择器时的入参（对应旧 webview 的
+/// [FileSelectorParams]，此处做去平台化封装，避免把 Android 类型泄漏到接口）。
+class WebBridgeFileSelector {
+  /// H5 声明的 accept 类型列表（如 `image/*`）。
+  final List<String> acceptTypes;
+
+  /// 是否允许多选。
+  final bool allowMultiple;
+
+  const WebBridgeFileSelector({
+    this.acceptTypes = const [],
+    this.allowMultiple = false,
+  });
+}
+
 /// 宿主适配层：把所有依赖具体 App 的能力（账号、会员、埋点、路由、
 /// 文件保存回调等）抽象成接口，由各接入方提供实现。
 ///
@@ -87,6 +102,12 @@ abstract class WebBridgeHostDelegate {
 
   /// 关闭当前 WebView 页（对应 globalRouter?.pop()）。
   void closePage();
+
+  /// H5 `<input type="file">` 触发的原生文件选择器（对应旧 webview 的
+  /// `setOnShowFileSelector`）。默认不接管，返回空列表（等价于宿主未设置选择器）；
+  /// 需要文件上传的宿主重写本方法，返回选中文件路径列表。
+  Future<List<String>> onShowFileSelector(WebBridgeFileSelector selector) async =>
+      const [];
 
   /// 注册宿主态监听（登录/会员/绑定变化）。
   void addListener(WebBridgeHostListener listener);

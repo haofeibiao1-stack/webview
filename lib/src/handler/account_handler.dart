@@ -22,21 +22,24 @@ class AccountHandler extends BridgeMethodHandler {
   Future<void> handle(BridgeContext ctx, WebviewData data) async {
     switch (data.method) {
       case 'getCommonParams':
-        ctx.callbackString(data.callback, await ctx.host.getCommonParams());
+        ctx.emitResult(data.callback, data: await ctx.host.getCommonParams());
         break;
       case 'getExtraParams':
-        ctx.callbackString(data.callback, await ctx.host.getExtraParams());
+        ctx.emitResult(data.callback, data: await ctx.host.getExtraParams());
         break;
       case 'getAttribute':
-        ctx.callbackString(data.callback, await ctx.host.getAttribute());
+        ctx.emitResult(data.callback, data: await ctx.host.getAttribute());
         break;
       case 'getAccountParams':
-        ctx.callbackString(data.callback, await ctx.host.getAccountParams());
+        ctx.emitResult(data.callback, data: await ctx.host.getAccountParams());
         break;
       case 'requestLogin':
       case 'login':
-        await ctx.host.requestLogin();
-        await ctx.setCookie();
+        // guardRequestLogin 时复刻文库存量逻辑：仅在未登录时触发登录 + 种 Cookie。
+        if (!(ctx.config.guardRequestLogin && await ctx.host.isLoggedIn())) {
+          await ctx.host.requestLogin();
+          await ctx.setCookie();
+        }
         break;
       case 'requestLogout':
         await ctx.host.requestLogout();
@@ -50,7 +53,7 @@ class AccountHandler extends BridgeMethodHandler {
         await ctx.host.jumpToUserInfo();
         break;
       case 'isLoggedIn':
-        ctx.callbackRaw(data.callback, await ctx.host.isLoggedIn());
+        ctx.emitResult(data.callback, data: await ctx.host.isLoggedIn());
         break;
     }
   }

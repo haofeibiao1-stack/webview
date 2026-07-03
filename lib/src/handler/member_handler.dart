@@ -20,10 +20,10 @@ class MemberHandler extends BridgeMethodHandler {
     final params = data.params;
     switch (data.method) {
       case 'isMemberShip':
-        ctx.callbackRaw(data.callback, await ctx.host.isMemberShip());
+        ctx.emitResult(data.callback, data: await ctx.host.isMemberShip());
         break;
       case 'getMemberInfo':
-        ctx.callbackString(data.callback, await ctx.host.getMemberInfo());
+        ctx.emitResult(data.callback, data: await ctx.host.getMemberInfo());
         break;
       case 'startMemberPage':
         await ctx.host.startMemberPage(
@@ -39,10 +39,10 @@ class MemberHandler extends BridgeMethodHandler {
         await ctx.host.bindTourist(params['extra']);
         break;
       case 'isTouristMembership':
-        ctx.callbackRaw(data.callback, await ctx.host.isTouristMembership());
+        ctx.emitResult(data.callback, data: await ctx.host.isTouristMembership());
         break;
       case 'isTouristModeEnable':
-        ctx.callbackRaw(data.callback, await ctx.host.isTouristModeEnable());
+        ctx.emitResult(data.callback, data: await ctx.host.isTouristModeEnable());
         break;
       case 'refreshMember':
         await ctx.host.refreshMember();
