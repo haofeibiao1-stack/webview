@@ -1,3 +1,11 @@
+## 0.0.6
+
+* `WebBridgeConfig` 新增 `seedCookieOnPageStarted`（默认 true）：控制 `onPageStarted` 页面加载时是否自动注入一次 Cookie。默认复刻 360AI 办公老代码（为规避鸿蒙控制器/WebView 未注册好导致注入失败，办公特意把种 Cookie 时机放在 onPageStarted，提交 `afda7ef`）；文库老代码 onPageStarted 不种 Cookie，文库 config 置 false 复刻，未登录打开页面不再种入账号 SDK 游客串（`qid=V...&uidvm=true`）。登录/登出监听与 H5 主动登录路径行为不变。
+
+## 0.0.5
+
+* 修复运营能力 `login`：已登录点击 login 无反应。拆分 `login` 与 `requestLogin`——`login` 已登录时跳转个人信息页(`jumpToUserInfo`)、未登录才拉起登录并种 Cookie;`requestLogin` 维持登录态守卫语义不变。
+
 ## 0.0.4
 
 * 增加文库存量 H5 兼容配置,通过 `WebBridgeConfig` 新增可选开关(默认保持既有行为,360AI 办公零回归)。

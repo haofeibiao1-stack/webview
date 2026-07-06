@@ -86,9 +86,17 @@ class WebBridgeConfig {
   /// H5 共用的三个运营能力）；传空列表则不注入任何 shim。
   final List<String> operationalShimMethods;
 
+  /// 是否在 `onPageStarted`（页面开始加载）时自动注入一次 Cookie。
+  ///
+  /// 默认 true，复刻 360AI 办公老代码：为规避鸿蒙平台「控制器/WebView 未注册好
+  /// 导致 Cookie 注入失败」，办公特意把注入时机放到 onPageStarted（提交
+  /// `afda7ef`）。文库老代码 onPageStarted 不种 Cookie，仅在登录/登出监听与
+  /// H5 `requestLogin` 时种，置 false 复刻——未登录打开页面也不会种入游客串。
+  final bool seedCookieOnPageStarted;
+
   const WebBridgeConfig({
     this.channelName = 'aiworkAppBridge',
-    this.uaMarker = '360ai办公',
+    this.uaMarker = '360aiwork',
     this.qCookieNames = const ['Q', '__NS_Q'],
     this.tCookieNames = const ['T', '__NS_T'],
     this.loadFailBuilder,
@@ -104,5 +112,6 @@ class WebBridgeConfig {
     this.preventAndroidImageDrag = true,
     this.showLoadFailView = true,
     this.operationalShimMethods = const ['login', 'share', 'savePhotoAndVideo'],
+    this.seedCookieOnPageStarted = true,
   });
 }

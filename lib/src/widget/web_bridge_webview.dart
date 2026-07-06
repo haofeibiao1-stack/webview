@@ -164,7 +164,9 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
       })
       ..setNavigationDelegate(NavigationDelegate(
         onPageStarted: (url) {
-          _cookieHelper.setCookie(_controller, _cookieManager);
+          if (_config.seedCookieOnPageStarted) {
+            _cookieHelper.setCookie(_controller, _cookieManager);
+          }
           _injectOperationalShim();
           widget.onPageStarted?.call(url);
         },

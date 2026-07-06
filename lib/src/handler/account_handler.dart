@@ -34,12 +34,18 @@ class AccountHandler extends BridgeMethodHandler {
         ctx.emitResult(data.callback, data: await ctx.host.getAccountParams());
         break;
       case 'requestLogin':
-      case 'login':
         // guardRequestLogin 时复刻文库存量逻辑：仅在未登录时触发登录 + 种 Cookie。
         if (!(ctx.config.guardRequestLogin && await ctx.host.isLoggedIn())) {
           await ctx.host.requestLogin();
           await ctx.setCookie();
         }
+        break;
+      case 'login':
+        // 运营能力登录按钮：已登录跳个人信息页，未登录才拉起登录并种 Cookie。
+        // 不能与 requestLogin 合并——合并后已登录时什么都不做，
+        // 会出现「登录完成再点 login 无反应」。
+        await ctx.host.requestLogin();
+        await ctx.setCookie();
         break;
       case 'requestLogout':
         await ctx.host.requestLogout();
