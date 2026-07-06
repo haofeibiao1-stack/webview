@@ -65,7 +65,10 @@ class MediaHandler extends BridgeMethodHandler {
       }
       var content = [title, desc, link].where((e) => e.isNotEmpty).join('\n');
       if (content.isEmpty) content = link;
-      await Share.share(content, subject: title.isNotEmpty ? title : null);
+      // 不传 subject：subject 会让系统面板预览只显示标题，且部分第三方会把
+      // subject 与正文里的 title 叠加成重复标题。content 已含 标题+描述+链接，
+      // 直接作为分享文本，面板与第三方均展示「文本 + 链接」（PRD 要求）。
+      await Share.share(content);
     } catch (_) {
       ctx.ui.dismissLoading();
       if (ctx.mounted) ctx.ui.showToast(ctx.buildContext, '分享失败');
