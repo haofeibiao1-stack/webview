@@ -45,13 +45,19 @@ class MediaHandler extends BridgeMethodHandler {
       final imgUrl = weixin['img_url']?.toString() ?? '';
       final videoUrl = weixin['video_url']?.toString() ?? '';
 
+      // 分享附带文本：title 优先，缺失则退到 desc，再退到 link；都没有则为空。
+      // H5 的 title 可能不传，空 title 不应导致分享失败。
+      final shareText =
+          [title, desc, link].firstWhere((e) => e.isNotEmpty, orElse: () => '');
+
       if (shareType == 'image' && imgUrl.isNotEmpty) {
         if (ctx.mounted) ctx.ui.showLoading(ctx.buildContext);
         final path = await DownloadUtil.downloadToTemp(imgUrl);
         ctx.ui.dismissLoading();
         if (path != null) {
+          // text 传 null（而非空串）：图片本身即可分享，无文本时不附带。
           await Share.shareXFiles([XFile(path)],
-              text: title.isNotEmpty ? title : desc);
+              text: shareText.isNotEmpty ? shareText : null);
           return;
         }
       } else if (shareType == 'video' && videoUrl.isNotEmpty) {
@@ -60,12 +66,23 @@ class MediaHandler extends BridgeMethodHandler {
         ctx.ui.dismissLoading();
         if (path != null) {
           await Share.shareXFiles([XFile(path)],
-              text: title.isNotEmpty ? title : desc);
+              text: shareText.isNotEmpty ? shareText : null);
           return;
         }
       }
+      // 链接分享：拼接 title/desc/link 中的非空项。
       var content = [title, desc, link].where((e) => e.isNotEmpty).join('\n');
-      if (content.isEmpty) content = link;
+      // 图片/视频下载失败会落到这里：无文本时退到 link / img_url / video_url，
+      // 保证仍有可分享内容；彻底为空才提示，绝不把空串交给 Share.share
+      // （会触发 share_plus 的 text.isNotEmpty 断言而崩溃）。
+      if (content.isEmpty) {
+        content = [link, imgUrl, videoUrl]
+            .firstWhere((e) => e.isNotEmpty, orElse: () => '');
+      }
+      if (content.isEmpty) {
+        if (ctx.mounted) ctx.ui.showToast(ctx.buildContext, '分享内容为空');
+        return;
+      }
       // 不传 subject：subject 会让系统面板预览只显示标题，且部分第三方会把
       // subject 与正文里的 title 叠加成重复标题。content 已含 标题+描述+链接，
       // 直接作为分享文本，面板与第三方均展示「文本 + 链接」（PRD 要求）。
