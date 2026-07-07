@@ -1,3 +1,7 @@
+## 0.0.9
+
+* `WebBridgeFileSelector` 新增 `isCaptureEnabled`（默认 false）：透传 H5 `<input capture>` 显式要求实时采集的意图，为 true 时宿主应直接调起相机而非让用户在相册与拍照间选择。由 `web_bridge_webview` 从文件选择参数的 `isCaptureEnabled` 透传。
+
 ## 0.0.8
 
 * 分享文本空值兜底,避免空串触发 `share_plus` 断言崩溃:提取 `shareText`(title/desc/link 首个非空项),空 title 不再导致分享失败;图片/视频分享 `text` 传 null 而非空串,无文本时不附带;链接分享 content 为空时退到 link/img_url/video_url,彻底为空才提示并中止。

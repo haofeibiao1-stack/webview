@@ -253,6 +253,7 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
             WebBridgeFileSelector(
               acceptTypes: params.acceptTypes,
               allowMultiple: params.mode == FileSelectorMode.openMultiple,
+              isCaptureEnabled: params.isCaptureEnabled,
             ),
           ));
     }

@@ -26,9 +26,14 @@ class WebBridgeFileSelector {
   /// 是否允许多选。
   final bool allowMultiple;
 
+  /// H5 是否显式要求实时采集（`<input capture>`）。为 true 时应直接调起相机，
+  /// 而非让用户在相册与拍照间选择。
+  final bool isCaptureEnabled;
+
   const WebBridgeFileSelector({
     this.acceptTypes = const [],
     this.allowMultiple = false,
+    this.isCaptureEnabled = false,
   });
 }
 
