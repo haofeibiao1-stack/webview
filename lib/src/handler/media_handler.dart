@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../core/bridge_context.dart';
@@ -80,6 +81,17 @@ class MediaHandler extends BridgeMethodHandler {
     if (url.isEmpty) {
       if (ctx.mounted) ctx.ui.showToast(ctx.buildContext, '保存失败');
       return;
+    }
+    // iOS：保存到相册前先受控申请相册权限，被拒时给提示，
+    // 避免让 image_gallery_saver_plus 在写入时因缺权限直接失败。
+    // 用 Permission.photos（对应宿主 Podfile 已开的 PERMISSION_PHOTOS=1 与
+    // Info.plist 的 NSPhotoLibraryUsageDescription）；limited/granted 均可写入。
+    if (Platform.isIOS) {
+      final status = await Permission.photos.request();
+      if (!(status.isGranted || status.isLimited)) {
+        if (ctx.mounted) ctx.ui.showToast(ctx.buildContext, '未获得相册权限');
+        return;
+      }
     }
     if (ctx.mounted) ctx.ui.showLoading(ctx.buildContext);
     try {
