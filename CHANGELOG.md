@@ -1,3 +1,7 @@
+## 0.0.8
+
+* 分享文本空值兜底,避免空串触发 `share_plus` 断言崩溃:提取 `shareText`(title/desc/link 首个非空项),空 title 不再导致分享失败;图片/视频分享 `text` 传 null 而非空串,无文本时不附带;链接分享 content 为空时退到 link/img_url/video_url,彻底为空才提示并中止。
+
 ## 0.0.7
 
 * iOS 保存图片/视频到相册前先受控申请相册权限（`Permission.photos`，对应宿主 Podfile 的 `PERMISSION_PHOTOS=1` 与 Info.plist 的 `NSPhotoLibraryUsageDescription`）；`granted`/`limited` 均可写入，被拒时提示「未获得相册权限」并中止，避免 `image_gallery_saver_plus` 因缺权限在写入时直接失败。新增 `permission_handler` 依赖。
