@@ -1,3 +1,8 @@
+## 1.0.0
+
+* 媒体分享/保存与账号登录增加统一前缀调试日志（`【WebBridge-Media】`/`【WebBridge-Account】`），可在 logcat/Console 过滤查看 H5 传入参数与我们的响应。
+* iOS 相册权限保存流程细化：先查当前状态区分「尚未询问」与「已被拒绝」——`permanentlyDenied` 弹自定义引导弹窗（「去设置」跳系统设置手动开启），未决定态才调起系统原生授权框，原生框结果不再叠加引导。
+
 ## 0.0.9
 
 * `WebBridgeFileSelector` 新增 `isCaptureEnabled`（默认 false）：透传 H5 `<input capture>` 显式要求实时采集的意图，为 true 时宿主应直接调起相机而非让用户在相册与拍照间选择。由 `web_bridge_webview` 从文件选择参数的 `isCaptureEnabled` 透传。
