@@ -1,6 +1,6 @@
 name: webview_bridge
 description: "跨项目复用的 WebView + JSBridge 能力插件（分发层 + 能力层 + 宿主/UI 适配层）。"
-version: 0.0.9
+version: 1.0.0
 publish_to: http://s4.qbuild.corp.qihoo.net:4000
 homepage: https://github.com/haofeibiao1-stack/webview
 repository: https://github.com/haofeibiao1-stack/webview.git
