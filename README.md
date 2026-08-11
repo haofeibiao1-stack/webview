@@ -89,6 +89,63 @@ WebBridgeWebView(
 );
 ```
 
+## H5 麦克风与摄像头权限
+
+插件支持可信 H5 直接调用：
+
+```js
+await navigator.mediaDevices.getUserMedia({ audio: true });
+await navigator.mediaDevices.getUserMedia({ video: true });
+await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+```
+
+媒体采集权限默认关闭。宿主需要在配置中显式开启：
+
+```dart
+const WebBridgeConfig(
+  enableMediaCapturePermission: true,
+)
+```
+
+同时让宿主适配类额外实现 `WebBridgeMediaCapturePolicy`，复用宿主已有的可信域
+策略。插件不会维护或复制域名白名单，每次收到 WebView 权限请求都会校验当前
+顶层页面 URL；旧宿主无需修改已有 delegate 实现即可继续编译，但未实现策略接口
+时媒体采集会默认拒绝：
+
+```dart
+class WenkuHostDelegate
+    implements WebBridgeHostDelegate, WebBridgeMediaCapturePolicy {
+  @override
+  Future<bool> canRequestMediaCapture({
+    required Uri url,
+    required Set<WebBridgeMediaCaptureType> types,
+  }) async {
+    return UrlGuard.isTrustedWebUrl(url.toString());
+  }
+}
+```
+
+不可信页面、空 URL、非相机/麦克风资源、系统权限拒绝或处理异常都会返回拒绝，
+H5 的 `getUserMedia()` Promise 将收到 `NotAllowedError`。由于
+`webview_flutter` 的通用权限请求没有暴露 iframe 的真实请求源，包含跨域 iframe
+的页面还应通过 HTTP `Permissions-Policy` 和 iframe `allow` 属性限制媒体权限。
+
+权限请求到达时插件会同步保存当前顶层页面 URL 和导航代次；可信域检查或系统
+授权期间一旦页面发生跳转（包括同 URL reload），旧请求会被拒绝，也不会与新
+文档的请求合并。WebView 销毁时会使当前及排队请求全部失效，不再继续弹出权限框。
+
+Android 11 及以上在用户多次拒绝后可能不再展示系统原生权限框。插件会区分普通
+拒绝和永久拒绝：仍可申请时继续调用系统权限框；用户在本次系统框中拒绝并刚转为
+永久拒绝时，不会紧接着叠加设置引导；后续 H5 再次申请才展示插件内引导弹窗，并
+提供“去设置”入口。关闭引导后，下次点击仍可再次展示；从设置返回后会重新读取
+权限状态，不缓存拒绝结果。
+
+平台限制：Android 可通过 WebView 权限回调执行上述策略；iOS 需要 iOS 15 及以上
+的 `WKUIDelegate.requestMediaCapturePermissionFor` 回调，插件才能在 WebView 层
+强制执行宿主可信域策略。iOS 14 及以下没有该委托能力，媒体请求仍可能进入 WebKit
+自身的系统提示流程，插件无法承诺完全拦截；接入方不应把 iOS 14 视为已受本策略
+完整保护。
+
 ## 扩展新能力
 
 实现 `BridgeMethodHandler`，通过 `extraHandlers` 注册即可，无需改动分发逻辑：
@@ -120,5 +177,32 @@ class MyCustomHandler extends BridgeMethodHandler {
 
 ## 平台权限
 
-接入方需在原生侧声明：Android `READ_MEDIA_*` / `WRITE_EXTERNAL_STORAGE`（按版本），
-iOS `NSPhotoLibraryAddUsageDescription`。
+保存相册能力需要接入方声明 Android `READ_MEDIA_*` / `WRITE_EXTERNAL_STORAGE`
+（按版本）以及 iOS `NSPhotoLibraryAddUsageDescription`。
+
+H5 媒体采集能力还需要宿主声明：
+
+Android `AndroidManifest.xml`：
+
+```xml
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-permission android:name="android.permission.RECORD_AUDIO" />
+```
+
+iOS `Info.plist`：
+
+```xml
+<key>NSCameraUsageDescription</key>
+<string>需要访问您的摄像头</string>
+<key>NSMicrophoneUsageDescription</key>
+<string>需要访问您的麦克风</string>
+```
+
+iOS `Podfile` 中还需为 `permission_handler` 开启：
+
+```ruby
+"PERMISSION_CAMERA=1",
+"PERMISSION_MICROPHONE=1",
+```
+
+远程 H5 应使用 HTTPS。

@@ -39,6 +39,10 @@ class WebBridgeConfig {
   /// `setMediaPlaybackRequiresUserGesture(false)`。
   final bool mediaAutoPlay;
 
+  /// 是否允许可信页面申请麦克风/摄像头采集权限。默认 false，避免插件升级后
+  /// 其他宿主自动获得敏感权限能力；开启后仍需通过宿主可信域校验。
+  final bool enableMediaCapturePermission;
+
   /// `requestLogin`/`login` 是否加「已登录则跳过」守卫。默认 false（360AI 办公
   /// 无条件触发登录）；文库存量逻辑仅在未登录时登录，置 true 复刻。
   final bool guardRequestLogin;
@@ -103,6 +107,7 @@ class WebBridgeConfig {
     this.callbackEnvelope,
     this.enableInlineMediaPlayback = false,
     this.mediaAutoPlay = false,
+    this.enableMediaCapturePermission = false,
     this.guardRequestLogin = false,
     this.autoSuccessCallback = false,
     this.enableToaster = false,

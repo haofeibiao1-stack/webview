@@ -15,6 +15,11 @@ import '../delegate/host_delegate.dart';
 import '../delegate/ui_delegate.dart';
 import '../handler/default_handlers.dart';
 import '../model/webview_data.dart';
+import '../permission/media_capture_host_policy.dart';
+import '../permission/media_capture_permission_coordinator.dart';
+import '../permission/media_capture_permission_guide.dart';
+import '../permission/media_capture_system_permission.dart';
+import '../permission/media_capture_webview_permission.dart';
 import '../util/cookie_helper.dart';
 import 'default_load_fail_view.dart';
 
@@ -86,12 +91,18 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
   late final BridgeDispatcher _dispatcher;
   late final WebBridgeUiDelegate _ui;
   late final WebBridgeHostListener _hostListener;
+  late final MediaCapturePermissionCoordinator _mediaPermissionCoordinator;
+  late final MediaCapturePermissionGuideHandler _mediaPermissionGuideHandler;
+  late final MediaCapturePermissionGuideDialogPresenter
+      _mediaPermissionGuidePresenter;
 
   bool _isInitial = true;
   String _title = '加载中...';
   bool _loadFail = false;
   bool _hasLoadContent = false;
   int _progress = 0;
+  String? _mediaCapturePageUrl;
+  int _mediaCaptureNavigationGeneration = 0;
 
   bool get _pageReady => _hasLoadContent || _progress >= 100;
 
@@ -164,6 +175,9 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
       })
       ..setNavigationDelegate(NavigationDelegate(
         onPageStarted: (url) {
+          _mediaPermissionGuidePresenter.dismiss();
+          _mediaCaptureNavigationGeneration++;
+          _mediaCapturePageUrl = url;
           if (_config.seedCookieOnPageStarted) {
             _cookieHelper.setCookie(_controller, _cookieManager);
           }
@@ -179,6 +193,7 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
           }
         },
         onPageFinished: (url) async {
+          _mediaCapturePageUrl = url;
           _hasLoadContent = true;
           _injectOperationalShim();
           widget.onPageFinished?.call(url);
@@ -222,6 +237,35 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
           return NavigationDecision.navigate;
         },
       ));
+
+    final systemPermissionRequester = PermissionHandlerMediaCaptureRequester();
+    _mediaPermissionGuidePresenter =
+        MediaCapturePermissionGuideDialogPresenter();
+    _mediaPermissionGuideHandler = MediaCapturePermissionGuideHandler(
+      canPresent: () => Platform.isAndroid && mounted,
+      present: (types) => _mediaPermissionGuidePresenter.show(
+        context,
+        types,
+      ),
+    );
+    _mediaPermissionCoordinator = MediaCapturePermissionCoordinator(
+      enabled: _config.enableMediaCapturePermission,
+      currentUrl: () => _mediaCapturePageUrl,
+      currentNavigationGeneration: () => _mediaCaptureNavigationGeneration,
+      isTrusted: (url, types) => MediaCaptureHostPolicy.isTrusted(
+        widget.host,
+        url: url,
+        types: types,
+      ),
+      requestSystemPermissions: systemPermissionRequester.request,
+    );
+    final mediaPermissionHandler = MediaCaptureWebViewPermissionHandler(
+      authorize: _mediaPermissionCoordinator.authorize,
+      onPermanentlyDenied: _mediaPermissionGuideHandler.handle,
+    );
+    _controller.platform.setOnPlatformPermissionRequest(
+      mediaPermissionHandler.handle,
+    );
 
     // 复刻旧 webview 的 Toaster 通道：H5 postMessage 弹 SnackBar。
     if (_config.enableToaster) {
@@ -449,6 +493,10 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
 
   @override
   void dispose() {
+    _mediaPermissionGuidePresenter.dismiss();
+    _mediaPermissionCoordinator.invalidate();
+    _mediaCaptureNavigationGeneration++;
+    _mediaCapturePageUrl = null;
     widget.host.removeListener(_hostListener);
     super.dispose();
   }

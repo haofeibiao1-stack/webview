@@ -1,3 +1,12 @@
+## 1.1.0
+
+* 支持可信 H5 通过 `navigator.mediaDevices.getUserMedia()` 申请麦克风与摄像头权限。
+* `WebBridgeConfig` 新增 `enableMediaCapturePermission`，默认关闭；宿主按需实现 `WebBridgeMediaCapturePolicy`，通过 `canRequestMediaCapture` 复用自身可信域策略显式放行，旧宿主保持兼容。
+* Android/iOS 统一使用 `permission_handler` 申请系统权限，并将结果回传给 WebView；非媒体资源、异常和非可信页面默认拒绝。
+* 相同权限并发请求自动合并，不同权限请求串行执行，避免系统权限弹窗重叠。
+* 权限处理期间页面发生跳转（含同 URL reload）时拒绝旧请求并隔离请求合并；WebView 销毁时使当前及排队请求失效，避免离开页面后继续授权。
+* Android 用户在本次系统框中拒绝并刚转为永久拒绝时不叠加设置引导；后续 H5 再次申请才展示插件内引导弹窗，可跳转应用设置开启摄像头或麦克风权限。拒绝完成前已排队的请求同样不引导；并发请求只展示一个引导，关闭后可再次展示。
+* iOS 15+ 通过 WKWebView 媒体权限委托执行可信域策略；iOS 14 及以下受 WebKit 能力限制，无法由插件完全接管媒体授权提示。
 ## 1.0.0
 
 * 媒体分享/保存与账号登录增加统一前缀调试日志（`【WebBridge-Media】`/`【WebBridge-Account】`），可在 logcat/Console 过滤查看 H5 传入参数与我们的响应。
