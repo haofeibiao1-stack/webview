@@ -13,6 +13,7 @@
 library;
 
 export 'src/config/web_bridge_config.dart';
+export 'src/cookie/account_cookie_policy.dart';
 export 'src/core/bridge_context.dart';
 export 'src/core/bridge_dispatcher.dart';
 export 'src/core/bridge_method_handler.dart';

@@ -98,6 +98,13 @@ class WebBridgeConfig {
   /// H5 `requestLogin` 时种，置 false 复刻——未登录打开页面也不会种入游客串。
   final bool seedCookieOnPageStarted;
 
+  /// 是否在首次加载远程页面前注入当前账号 Cookie。
+  ///
+  /// 默认 false，旧宿主与 360AI 办公保持原有加载时序。开启后，宿主还必须实现
+  /// `WebBridgeCookiePolicy` 并明确放行目标 URL；插件会等待 Cookie 写入结束后再
+  /// 加载首屏，注入失败则降级为直接加载页面。
+  final bool seedCookieBeforeInitialLoad;
+
   const WebBridgeConfig({
     this.channelName = 'aiworkAppBridge',
     this.uaMarker = '360aiwork',
@@ -118,5 +125,6 @@ class WebBridgeConfig {
     this.showLoadFailView = true,
     this.operationalShimMethods = const ['login', 'share', 'savePhotoAndVideo'],
     this.seedCookieOnPageStarted = true,
+    this.seedCookieBeforeInitialLoad = false,
   });
 }

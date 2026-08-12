@@ -19,21 +19,33 @@ class CookieHelper {
     String? path,
   }) async {
     try {
-      final WebBridgeAccount? account = await host.getAccount();
-      final q = account?.q ?? '';
-      final t = account?.t ?? '';
-      final qValue = !Platform.isIOS ? Uri.decodeComponent(q) : q;
-      final tValue = !Platform.isIOS ? Uri.decodeComponent(t) : t;
       final url = path ?? (await controller.currentUrl() ?? '');
-      final domain = Uri.parse(url).host;
-      for (final name in config.qCookieNames) {
-        await cookieManager.setCookie(
-            WebViewCookie(name: name, value: qValue, domain: domain));
-      }
-      for (final name in config.tCookieNames) {
-        await cookieManager.setCookie(
-            WebViewCookie(name: name, value: tValue, domain: domain));
+      final cookies = await accountCookiesForUrl(url);
+      for (final cookie in cookies) {
+        await cookieManager.setCookie(cookie);
       }
     } catch (_) {}
+  }
+
+  /// 读取宿主当前账号，为目标 URL 生成账号 Cookie。
+  ///
+  /// Q/T 任一缺失都视为无有效账号，不写入空 Cookie，避免用空的子域 Cookie
+  /// 覆盖或遮蔽父域有效登录态。
+  Future<List<WebViewCookie>> accountCookiesForUrl(String url) async {
+    final WebBridgeAccount? account = await host.getAccount();
+    if (account == null || account.q.isEmpty || account.t.isEmpty) {
+      return const [];
+    }
+    final domain = Uri.tryParse(url)?.host ?? '';
+    if (domain.isEmpty) return const [];
+
+    final qValue = !Platform.isIOS ? Uri.decodeComponent(account.q) : account.q;
+    final tValue = !Platform.isIOS ? Uri.decodeComponent(account.t) : account.t;
+    return [
+      for (final name in config.qCookieNames)
+        WebViewCookie(name: name, value: qValue, domain: domain),
+      for (final name in config.tCookieNames)
+        WebViewCookie(name: name, value: tValue, domain: domain),
+    ];
   }
 }

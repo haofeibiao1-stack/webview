@@ -1,3 +1,9 @@
+## 1.1.1
+
+* 修复宿主登录后首次打开 H5 时目标子域仍使用旧账号 Cookie，导致接口返回登录错误的问题。
+* `WebBridgeConfig` 新增 `seedCookieBeforeInitialLoad`，默认关闭；宿主实现 `WebBridgeCookiePolicy` 并通过可信域校验后，插件会先把当前账号 `Q/T` 同步到目标域，再加载首屏。
+* 登录事件会等待账号 Cookie 写入完成后再通知 H5；未登录或 `Q/T` 不完整时不再写入空 Cookie，Cookie 注入失败不阻塞页面加载。
+
 ## 1.1.0
 
 * 支持可信 H5 通过 `navigator.mediaDevices.getUserMedia()` 申请麦克风与摄像头权限。

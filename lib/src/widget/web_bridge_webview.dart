@@ -8,6 +8,7 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 import '../config/web_bridge_config.dart';
+import '../cookie/account_cookie_bootstrapper.dart';
 import '../core/bridge_context.dart';
 import '../core/bridge_dispatcher.dart';
 import '../core/bridge_method_handler.dart';
@@ -119,13 +120,13 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
       ..registerAll(widget.extraHandlers);
 
     _hostListener = WebBridgeHostListener(
-      onLoggedIn: () {
-        _cookieHelper.setCookie(_controller, _cookieManager);
-        _controller.runJavaScript('onLoggedIn()');
+      onLoggedIn: () async {
+        await _cookieHelper.setCookie(_controller, _cookieManager);
+        await _controller.runJavaScript('onLoggedIn()');
       },
-      onLoggedOut: () {
-        _cookieHelper.setCookie(_controller, _cookieManager);
-        _controller.runJavaScript('onLoggedOut()');
+      onLoggedOut: () async {
+        await _cookieHelper.setCookie(_controller, _cookieManager);
+        await _controller.runJavaScript('onLoggedOut()');
       },
       onBindStatusChanged: (isBind) {
         _controller.runJavaScript("onBindStatusChanged({'isBind':$isBind})");
@@ -357,7 +358,18 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
   /// 使真实内容只加载一次（不再 reload，无闪烁、无遮罩依赖）。
   Future<void> _bootstrap() async {
     await _applyUaMarker();
-    await _loadContent();
+    await AccountCookieBootstrapper(
+      enabled: _config.seedCookieBeforeInitialLoad,
+      host: widget.host,
+    ).load(
+      targetUrl: widget.url,
+      seedCookie: () => _cookieHelper.setCookie(
+        _controller,
+        _cookieManager,
+        path: widget.url,
+      ),
+      loadContent: _loadContent,
+    );
   }
 
   /// http(s) 走 loadRequest，其余按本地 Flutter asset 加载（复刻旧 webview 行为）。
