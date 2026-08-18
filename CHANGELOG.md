@@ -1,3 +1,8 @@
+## 1.1.2
+
+* 修复 iOS H5 首次拒绝媒体权限后二次申请无法再触发的问题：WebKit 在拒绝后 `getUserMedia` 可能直接返回 `NotAllowedError` 而不再回调 `WKUIDelegate`。
+* 新增 `MediaCaptureIosJsInterceptor`，在 H5 调用原始 `getUserMedia` 前先把请求转交 Flutter，由 Dart 侧统一判断可信域、系统权限与设置引导后再 resolve/reject Promise；脚本幂等注入，可信域与权限判断逻辑保持不变。
+
 ## 1.1.1
 
 * 修复宿主登录后首次打开 H5 时目标子域仍使用旧账号 Cookie，导致接口返回登录错误的问题。
