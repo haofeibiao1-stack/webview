@@ -22,6 +22,7 @@ export 'src/delegate/ui_delegate.dart';
 export 'src/model/web_bridge_account.dart';
 export 'src/model/webview_data.dart';
 export 'src/permission/media_capture_permission.dart';
+export 'src/permission/media_capture_ios_js_interceptor.dart';
 export 'src/widget/web_bridge_webview.dart';
 
 // 插件公开 API 暴露了 WebViewController（onControllerCreated / BridgeContext.controller），

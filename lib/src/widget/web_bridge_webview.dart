@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -17,6 +18,8 @@ import '../delegate/ui_delegate.dart';
 import '../handler/default_handlers.dart';
 import '../model/webview_data.dart';
 import '../permission/media_capture_host_policy.dart';
+import '../permission/media_capture_ios_js_interceptor.dart';
+import '../permission/media_capture_permission.dart';
 import '../permission/media_capture_permission_coordinator.dart';
 import '../permission/media_capture_permission_guide.dart';
 import '../permission/media_capture_system_permission.dart';
@@ -86,6 +89,8 @@ class WebBridgeWebView extends StatefulWidget {
 }
 
 class _WebBridgeWebViewState extends State<WebBridgeWebView> {
+  static const _iosMediaPermissionChannelName = 'WebBridgeMediaPermission';
+
   late final WebViewController _controller;
   late final WebViewCookieManager _cookieManager;
   late final CookieHelper _cookieHelper;
@@ -93,6 +98,8 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
   late final WebBridgeUiDelegate _ui;
   late final WebBridgeHostListener _hostListener;
   late final MediaCapturePermissionCoordinator _mediaPermissionCoordinator;
+  late final PermissionHandlerMediaCaptureRequester
+      _mediaPermissionSystemRequester;
   late final MediaCapturePermissionGuideHandler _mediaPermissionGuideHandler;
   late final MediaCapturePermissionGuideDialogPresenter
       _mediaPermissionGuidePresenter;
@@ -182,7 +189,14 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
           if (_config.seedCookieOnPageStarted) {
             _cookieHelper.setCookie(_controller, _cookieManager);
           }
+          _injectIosMediaPermissionShim();
           _injectOperationalShim();
+          debugPrint(
+            '【WebBridge-MediaPermission】 页面开始加载 '
+            'url=$url generation=$_mediaCaptureNavigationGeneration '
+            'mediaEnabled=${_config.enableMediaCapturePermission}',
+          );
+          _logMediaPermissionStatus('page_started');
           widget.onPageStarted?.call(url);
         },
         onProgress: (progress) {
@@ -196,7 +210,14 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
         onPageFinished: (url) async {
           _mediaCapturePageUrl = url;
           _hasLoadContent = true;
+          _injectIosMediaPermissionShim();
           _injectOperationalShim();
+          debugPrint(
+            '【WebBridge-MediaPermission】 页面加载完成 '
+            'url=$url generation=$_mediaCaptureNavigationGeneration '
+            'mediaEnabled=${_config.enableMediaCapturePermission}',
+          );
+          _logMediaPermissionStatus('page_finished');
           widget.onPageFinished?.call(url);
           if (widget.showLoading && mounted) {
             setState(() {});
@@ -239,11 +260,12 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
         },
       ));
 
-    final systemPermissionRequester = PermissionHandlerMediaCaptureRequester();
+    _mediaPermissionSystemRequester = PermissionHandlerMediaCaptureRequester();
     _mediaPermissionGuidePresenter =
         MediaCapturePermissionGuideDialogPresenter();
     _mediaPermissionGuideHandler = MediaCapturePermissionGuideHandler(
-      canPresent: () => Platform.isAndroid && mounted,
+      canPresent: () =>
+          supportsMediaCapturePermissionGuide(defaultTargetPlatform) && mounted,
       present: (types) => _mediaPermissionGuidePresenter.show(
         context,
         types,
@@ -258,15 +280,57 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
         url: url,
         types: types,
       ),
-      requestSystemPermissions: systemPermissionRequester.request,
+      requestSystemPermissions: _mediaPermissionSystemRequester.request,
     );
     final mediaPermissionHandler = MediaCaptureWebViewPermissionHandler(
       authorize: _mediaPermissionCoordinator.authorize,
       onPermanentlyDenied: _mediaPermissionGuideHandler.handle,
     );
-    _controller.platform.setOnPlatformPermissionRequest(
-      mediaPermissionHandler.handle,
+    debugPrint(
+      '【WebBridge-MediaPermission】 准备注册平台权限回调 '
+      'platform=${Platform.operatingSystem} '
+      'defaultTargetPlatform=$defaultTargetPlatform '
+      'controller=${_controller.platform.runtimeType} '
+      'url=${widget.url} '
+      'enabled=${_config.enableMediaCapturePermission}',
     );
+    final permissionCallbackRegistration =
+        _controller.platform.setOnPlatformPermissionRequest(
+      (request) {
+        debugPrint(
+          '【WebBridge-MediaPermission】 平台权限回调 platform=${Platform.operatingSystem} '
+          'controller=${_controller.platform.runtimeType} '
+          'types=${request.types} url=${_mediaCapturePageUrl ?? '<null>'} '
+          'generation=$_mediaCaptureNavigationGeneration',
+        );
+        mediaPermissionHandler.handle(request).then((_) {
+          debugPrint(
+            '【WebBridge-MediaPermission】 平台权限回调处理完成 '
+            'types=${request.types} url=${_mediaCapturePageUrl ?? '<null>'} '
+            'generation=$_mediaCaptureNavigationGeneration',
+          );
+        }).catchError((error, stackTrace) {
+          debugPrint(
+            '【WebBridge-MediaPermission】 平台权限回调处理异常 '
+            'types=${request.types} error=$error',
+          );
+          debugPrintStack(stackTrace: stackTrace);
+        });
+      },
+    );
+    permissionCallbackRegistration.then((_) {
+      debugPrint(
+        '【WebBridge-MediaPermission】 平台权限回调已注册 '
+        'platform=${Platform.operatingSystem} '
+        'controller=${_controller.platform.runtimeType} '
+        'enabled=${_config.enableMediaCapturePermission}',
+      );
+    }).catchError((error, stackTrace) {
+      debugPrint(
+        '【WebBridge-MediaPermission】 平台权限回调注册失败 error=$error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
+    });
 
     // 复刻旧 webview 的 Toaster 通道：H5 postMessage 弹 SnackBar。
     if (_config.enableToaster) {
@@ -314,6 +378,27 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
     _bootstrap();
   }
 
+  void _logMediaPermissionStatus(String reason) {
+    if (!_config.enableMediaCapturePermission) {
+      debugPrint(
+        '【WebBridge-MediaPermission】 跳过系统权限状态快照 '
+        'reason=$reason enabled=false',
+      );
+      return;
+    }
+    unawaited(
+      _mediaPermissionSystemRequester
+          .logCurrentStatusSnapshot(reason: reason)
+          .catchError((error, stackTrace) {
+        debugPrint(
+          '【WebBridge-MediaPermission】 系统权限状态快照异常 '
+          'reason=$reason error=$error',
+        );
+        debugPrintStack(stackTrace: stackTrace);
+      }),
+    );
+  }
+
   BridgeContext _buildContext() => BridgeContext(
         buildContext: context,
         controller: _controller,
@@ -349,6 +434,7 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
       post(JSON.stringify({ method: name, params: p, callback: callback || '' }));
     };
   }
+
   [$list].forEach(function(m){ if(typeof b[m] !== 'function'){ b[m] = mk(m); } });
 })();
 ''');
@@ -357,6 +443,7 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
   /// 启动流程：先在首帧前把宿主 UA 标识预设好，再加载真实页，
   /// 使真实内容只加载一次（不再 reload，无闪烁、无遮罩依赖）。
   Future<void> _bootstrap() async {
+    await _registerIosMediaPermissionChannel();
     await _applyUaMarker();
     await AccountCookieBootstrapper(
       enabled: _config.seedCookieBeforeInitialLoad,
@@ -369,6 +456,158 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
         path: widget.url,
       ),
       loadContent: _loadContent,
+    );
+  }
+
+  /// iOS 的 WKWebView 在首次拒绝媒体权限后，后续 H5 请求可能不再进入
+  /// WKUIDelegate。通过插件自身的 JS Channel 先拦截 getUserMedia，确保
+  /// 每次申请都能经过 Flutter 的系统权限状态和设置引导判断。
+  Future<void> _registerIosMediaPermissionChannel() async {
+    if (!Platform.isIOS || !_config.enableMediaCapturePermission) {
+      return;
+    }
+    try {
+      await _controller.addJavaScriptChannel(
+        _iosMediaPermissionChannelName,
+        onMessageReceived: _handleIosMediaPermissionMessage,
+      );
+      debugPrint(
+        '【WebBridge-MediaPermission】 iOS JS 权限通道已注册 '
+        'channel=$_iosMediaPermissionChannelName',
+      );
+    } catch (error, stackTrace) {
+      debugPrint(
+        '【WebBridge-MediaPermission】 iOS JS 权限通道注册失败 '
+        'error=$error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  /// 处理 JS 前置拦截器发来的媒体权限请求。
+  void _handleIosMediaPermissionMessage(JavaScriptMessage message) {
+    unawaited(_authorizeIosMediaPermission(message));
+  }
+
+  Future<void> _authorizeIosMediaPermission(
+    JavaScriptMessage message,
+  ) async {
+    String? requestId;
+    try {
+      final raw = jsonDecode(message.message);
+      if (raw is! Map) {
+        throw const FormatException(
+            'media permission message is not an object');
+      }
+      requestId = raw['requestId']?.toString();
+      final types = <WebBridgeMediaCaptureType>{
+        if (raw['audio'] == true) WebBridgeMediaCaptureType.microphone,
+        if (raw['video'] == true) WebBridgeMediaCaptureType.camera,
+      };
+      final id = requestId;
+      if (id == null || id.isEmpty || types.isEmpty) {
+        debugPrint(
+          '【WebBridge-MediaPermission】 iOS JS 权限请求参数无效 '
+          'requestId=$requestId message=${message.message}',
+        );
+        return;
+      }
+      debugPrint(
+        '【WebBridge-MediaPermission】 iOS JS 权限请求进入 Flutter '
+        'requestId=$id types=$types '
+        'url=${_mediaCapturePageUrl ?? '<null>'} '
+        'generation=$_mediaCaptureNavigationGeneration',
+      );
+      final result = await _mediaPermissionCoordinator.authorize(types);
+      final isCurrentPage = result.isCurrentPage;
+      if (result.decision == MediaCapturePermissionDecision.permanentlyDenied &&
+          result.shouldShowSettingsGuide &&
+          isCurrentPage) {
+        debugPrint(
+          '【WebBridge-MediaPermission】 iOS JS 请求触发设置引导 '
+          'requestId=$id types=${result.permanentlyDeniedTypes}',
+        );
+        await _mediaPermissionGuideHandler.handle(
+          result.permanentlyDeniedTypes,
+        );
+      }
+      final granted = result.isGranted && isCurrentPage;
+      debugPrint(
+        '【WebBridge-MediaPermission】 iOS JS 权限请求结果 '
+        'requestId=$id decision=${result.decision} '
+        'granted=$granted showGuide=${result.shouldShowSettingsGuide} '
+        'current=$isCurrentPage',
+      );
+      await _respondToIosMediaPermission(
+        requestId: id,
+        result: result,
+        granted: granted,
+      );
+    } catch (error, stackTrace) {
+      debugPrint(
+        '【WebBridge-MediaPermission】 iOS JS 权限请求处理异常 '
+        'requestId=$requestId error=$error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
+      final id = requestId;
+      if (id != null && id.isNotEmpty) {
+        await _respondToIosMediaPermission(
+          requestId: id,
+          result: const MediaCapturePermissionResult.denied(),
+          granted: false,
+        );
+      }
+    }
+  }
+
+  Future<void> _respondToIosMediaPermission({
+    required String requestId,
+    required MediaCapturePermissionResult result,
+    required bool granted,
+  }) async {
+    if (!mounted) return;
+    try {
+      await _controller.runJavaScript(
+        MediaCaptureIosJsInterceptor.responseScript(
+          requestId: requestId,
+          granted: granted,
+          decision: result.decision.name,
+          showGuide: result.shouldShowSettingsGuide,
+        ),
+      );
+    } catch (error, stackTrace) {
+      debugPrint(
+        '【WebBridge-MediaPermission】 iOS JS 权限结果回传失败 '
+        'requestId=$requestId error=$error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  /// 在页面脚本执行前和页面完成后各尝试一次；脚本自身带幂等标记，
+  /// 页面重载或 SPA 导航不会重复包装原始 getUserMedia。
+  void _injectIosMediaPermissionShim() {
+    if (!Platform.isIOS || !_config.enableMediaCapturePermission) {
+      return;
+    }
+    unawaited(
+      _controller
+          .runJavaScript(
+        MediaCaptureIosJsInterceptor.installationScript(
+          channelName: _iosMediaPermissionChannelName,
+        ),
+      )
+          .then((_) {
+        debugPrint(
+          '【WebBridge-MediaPermission】 iOS getUserMedia 拦截器注入完成',
+        );
+      }).catchError((error, stackTrace) {
+        debugPrint(
+          '【WebBridge-MediaPermission】 iOS getUserMedia 拦截器注入失败 '
+          'error=$error',
+        );
+        debugPrintStack(stackTrace: stackTrace);
+      }),
     );
   }
 
@@ -505,6 +744,11 @@ class _WebBridgeWebViewState extends State<WebBridgeWebView> {
 
   @override
   void dispose() {
+    debugPrint(
+      '【WebBridge-MediaPermission】 WebView销毁 '
+      'url=${_mediaCapturePageUrl ?? '<null>'} '
+      'generation=$_mediaCaptureNavigationGeneration',
+    );
     _mediaPermissionGuidePresenter.dismiss();
     _mediaPermissionCoordinator.invalidate();
     _mediaCaptureNavigationGeneration++;

@@ -3,6 +3,15 @@ import 'package:permission_handler/permission_handler.dart';
 
 import 'media_capture_permission.dart';
 
+const _mediaPermissionLogTag = '【WebBridge-MediaPermission】';
+
+/// 平台原生媒体权限委托支持设置引导的目标平台。
+///
+/// WebView 的媒体权限回调仅在 Android 和 iOS 有对应实现；其他平台不应尝试
+/// 展示面向移动端系统设置的引导。
+bool supportsMediaCapturePermissionGuide(TargetPlatform platform) =>
+    platform == TargetPlatform.android || platform == TargetPlatform.iOS;
+
 typedef MediaCapturePermissionGuidePresenter = Future<void> Function();
 typedef OpenMediaCaptureAppSettings = Future<bool> Function();
 typedef CanPresentMediaCapturePermissionGuide = bool Function();
@@ -45,10 +54,18 @@ class MediaCapturePermissionGuideHandler {
   }) : _controller = controller ?? MediaCapturePermissionGuideController();
 
   Future<void> handle(Set<WebBridgeMediaCaptureType> types) {
-    if (types.isEmpty || !canPresent()) return Future<void>.value();
+    final isPresentable = canPresent();
+    debugPrint(
+      '$_mediaPermissionLogTag 引导处理器收到请求 types=$types canPresent=$isPresentable',
+    );
+    if (types.isEmpty || !isPresentable) return Future<void>.value();
     final requestedTypes = Set<WebBridgeMediaCaptureType>.unmodifiable(types);
     return _controller.show(() async {
-      if (!canPresent()) return;
+      final canStillPresent = canPresent();
+      debugPrint(
+        '$_mediaPermissionLogTag 准备展示引导 types=$requestedTypes canPresent=$canStillPresent',
+      );
+      if (!canStillPresent) return;
       await present(requestedTypes);
     });
   }
