@@ -1,5 +1,11 @@
+## 1.1.3
+
+* 新增 `WebBridgeCookieCleaner.clearAll()`，提供中立的 WebView Cookie 清理入口，由宿主在账号登出等时机调用。宿主可在 App init 注册一次全局登出监听触发清理，不依赖任何 H5 页面存活。
+* 说明：受 webview_flutter Cookie API 限制（`WebViewCookie` 无过期字段），纯 Dart 层无法窄删单个具名 Cookie，`clearAll` 为整体清空全部 WebView Cookie。
+
 ## 1.1.2
 
+* 媒体权限改为按“摄像头 → 麦克风”逐项申请，两个系统权限分别弹窗，前一项完成后才申请下一项。
 * 修复 iOS H5 首次拒绝媒体权限后二次申请无法再触发的问题：WebKit 在拒绝后 `getUserMedia` 可能直接返回 `NotAllowedError` 而不再回调 `WKUIDelegate`。
 * 新增 `MediaCaptureIosJsInterceptor`，在 H5 调用原始 `getUserMedia` 前先把请求转交 Flutter，由 Dart 侧统一判断可信域、系统权限与设置引导后再 resolve/reject Promise；脚本幂等注入，可信域与权限判断逻辑保持不变。
 

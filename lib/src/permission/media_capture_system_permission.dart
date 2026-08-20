@@ -155,16 +155,25 @@ class PermissionHandlerMediaCaptureRequester {
       );
     }
 
-    final statuses =
-        await _requestPermissions(permissionsToRequest.keys.toList());
+    // Android/iOS 对一次 permissions.request([...]) 可能合并系统权限弹窗。
+    // H5 同时请求音视频时，按固定顺序逐项申请，确保摄像头和麦克风分别弹窗。
+    final statuses = <Permission, PermissionStatus>{};
+    for (final entry in permissionsToRequest.entries) {
+      final batch = [entry.key];
+      debugPrint(
+        '$_mediaPermissionLogTag 开始逐项申请 permission=${entry.key}',
+      );
+      final result = await _requestPermissions(batch);
+      statuses.addAll(result);
+      debugPrint(
+        '$_mediaPermissionLogTag 逐项申请结果 permission=${entry.key} '
+        'status=${result[entry.key]}',
+      );
+      if (result[entry.key]?.isPermanentlyDenied ?? false) {
+        permanentlyDeniedTypes.add(entry.value);
+      }
+    }
     debugPrint('$_mediaPermissionLogTag 系统申请结果 statuses=$statuses');
-    permanentlyDeniedTypes.addAll(
-      permissionsToRequest.entries
-          .where(
-            (entry) => statuses[entry.key]?.isPermanentlyDenied ?? false,
-          )
-          .map((entry) => entry.value),
-    );
     if (permanentlyDeniedTypes.isNotEmpty) {
       debugPrint(
         '$_mediaPermissionLogTag 本次申请后变为永久拒绝 types=$permanentlyDeniedTypes，不立即展示设置引导',
